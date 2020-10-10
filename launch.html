@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <link rel="stylesheet" type="text/css" href="//fonts.googleapis.com/css?family=Nunito"/>
+    <style>
+        body {
+            font-family: Nunito, sans-serif;
+            background: #ff929e;
+            transition: background-color 0.8s ease;
+            overflow-x: hidden;
+        }
+        .menutext {
+            color: white;
+            width: 18vw;
+        }
+        .menu {
+            display: flex;
+            justify-content: space-evenly;
+            background-color: #ff929e;
+            transition: background-color 1s ease;
+            margin-top: 0.5vw;
+        }
+        ul {
+            list-style: none;
+            padding: 0;
+            margin-left: 0vw;
+            position: sticky;
+            display:inline-block;
+            top: 0.5vw;
+            z-index: 2;
+            box-shadow: 0px 7px 7px rgba(0,0,0,0.4);
+        }
+        .logo {
+            width: 15vw;
+            margin: auto;
+        }
+        li {
+            align-content: center;
+            text-align: center;
+            height: 5vw;
+            line-height: 5vw;
+            font-size: 2vw;
+            transition: background-color 1s ease;
+        }
+        .main_div {
+            margin-top: 5vw;
+            margin-left: 11vw; margin-right: 35vw;
+            padding: 1vw;
+            filter: blur(20px);
+            transition: filter 0.5s ease;
+        }
+        .splash_div {
+            border-radius: 25px;
+            padding-right: 15vw;
+            padding-top: 2.5vw;
+            padding-left: 2vw;
+            border: solid white 2px;
+            color: white;
+            line-height: 5vw;
+            height: 30vw;
+            font-size: 5vw;
+        }
+        p {
+            position: absolute;
+            line-height: 2.5vw;
+            font-size: 2vw; 
+            margin-top: -15vw;
+            margin-left: 2vw;
+            color: white;
+            width: 30vw;
+        }
+        .splash_image {
+            position: absolute;
+            float:right;
+            margin-left: 5vw;
+            width: 40vw;
+            margin-top: -3vw;
+        }
+        .start_button {
+            position: absolute;
+            margin-left: 19vw; margin-top: -7vw;
+            width: 12vw; height: 5vw;
+            border: white 15px;
+            border-radius: 25px;
+            background: white;
+            color: black;
+            font-size: 2vw;
+            text-align: center;
+            line-height: 5vw;
+            transition: background-color 0.4s ease, color 0.4s ease;
+        }
+        .start_button:hover {
+            background: #415159;
+            color: white;
+        }
+    </style>
+</head>
+<body id="body" onload='$("#div0").css("filter","blur(0px)");'>
+    <ul class="menu">
+        <li class="menutext" style="width: 23vw; margin-top: -0.5vw"><a href="/launch"><img class="logo" src="/resources/levelr.png"></a></li>
+        <li class="menutext"    style="width: 54vw"></li>
+        <li class="menutext" style="width: 23vw"onclick="window.open('/', '_self');">profile</li>
+    </ul>
+    <div id="div0" class="main_div">
+        <div class="splash_div">level the playing field.<img src="/resources/example.png" class="splash_image">
+        </div>
+        <p>we give you music you'll like, while empowering the artists who make it.</p>
+        <div class="start_button" onclick="window.open('/#feed', '_self');">start</div>
+    </div>
+    <div id="div1" class="main_div" style="margin-top: 4vw; margin-right: 11vw; margin-left: 35vw">
+        <div class="splash_div" style="padding-left: 17vw; padding-right: 2vw; text-align: right">powered by ai.<img src="/resources/example.png" class="splash_image" style="margin-left: -73vw; margin-right: 10vw; margin-top: 4vw">
+        </div>
+        <p style="margin-left: 17vw; margin-right: 2vw; margin-top: -18vw; text-align: right">our goal is simple: find and promote the best music you haven't heard yet.</p>
+        <div class="start_button" style="width: 16vw; margin-left: 25vw" onclick="window.open('/recommends?url=' +recommendUrl);">the model</div>
+    </div>
+    <div id="div2" class="main_div" style="margin-top: 8vw;">
+        <div class="splash_div">empowered by you.<img src="/resources/example.png" class="splash_image" style="margin-left: 18vw; margin-top: -11vw">
+        </div>
+        <p style="margin-top: -17vw; width: 24vw">we learn from what you like, and constantly improve our recommendations to give you good music and give creators exposure.</p>
+        <div class="start_button" onclick="window.open('/#saved', '_self');" style="width: 20vw; margin-left: 28vw">build a profile</div>
+    </div>
+    <div style="height: 10vw; width: 100vw"></div>
+</body>
+<script>
+    var recommendUrl = "https://soundcloud.com/silent-skies/nervo-emotional-silent-sk1es-remix/recommended";
+    $("#div0").css("filter","blur(20px)");
+    var timer = null;
+    paletteArray = new Array({"module":"div0","background":"#ff929e"},{"module":"div1","background": "#29524A"},{"module":"div2","background": "#FABC2A"});
+    window.addEventListener('scroll', function() {
+        timer = setTimeout(function() {
+            for(i = 0; i < paletteArray.length; i++) {
+                if($("#div" + i)[0].getBoundingClientRect().bottom > (window.innerHeight/2) &&
+                    $("#div" + i)[0].getBoundingClientRect().top < (window.innerHeight/2)) {
+                    console.log($("#div" + i)[0].getBoundingClientRect().bottom)
+                    $('body')[0].style.background = paletteArray[i].background;
+                    $('.menu')[0].style.background = paletteArray[i].background;
+                    $("#div" + i).css("filter","blur(0px)");
+                } else {
+                    $("#div" + i).css("filter","blur(20px)");
+                }
+            }
+        }, 10);
+    }, false);
+</script>
+</html>
