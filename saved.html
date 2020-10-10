@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+    <link rel="stylesheet" type="text/css" href="/resources/stylesheet.css"/>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <link rel="stylesheet" type="text/css" href="//fonts.googleapis.com/css?family=Nunito"/>
+</head>
+
+<body onload="startup()">
+
+    <ul class="menu" style="margin-top: 0vw">
+        <li class="menutext" style="width: 23vw; margin-top: -0vw"><a href="/launch"><img class="logo" style="margin-top: -0.5vw" src="/resources/levelr.png"></a></li>
+        <li id="feed" class="menutext" onclick="window.open('/feed','_self');">feed</li>
+        <li id="explore" class="menutext" onclick="window.open('/explore','_self');">explore</li>
+        <li id="saved" class="menutext" onclick="window.open('/saved','_self');">saved</li>
+        <li id="profile" class="menutext" style="width: 23vw" onclick="window.open('/logout','_self');">profile</li>
+    </ul>
+    <div id="entire_view" style="margin-left: 0vw; padding-left: 24vw; max-height: 100vh; width: 100vw">
+        <div style="width:100vw; height: 5vw"></div>
+    </div>
+
+    <!-------------->
+
+    <script id="saveBlueprint" type="text/html">
+        <div id="save0" class="save">
+            <div id="saveinner" class="saveinner" onmouseover="showplaybutton(getParentSaveId($(this)[0]))" onmouseout="hideplaybutton(getParentSaveId($(this)[0]))" onclick="expand(getParentSaveId($(this)[0]))">
+                <img id="staricon" class='savestarbutton' src="/resources/full-star.png" onclick='toggleSave(getParentSaveId($(this)[0].parentNode))'>
+                <img id='playbutton' class='saveplaybutton' src="/resources/play.png"  onclick='getAudioElement(getParentSaveId($(this)[0].parentNode)).paused ? play(getParentSaveId($(this)[0].parentNode), function(param){console.log(param)}) : pause(getParentSaveId($(this)[0].parentNode), false)'>
+                <img id='radiobutton' class='saveplaybutton' style="margin-left: 63.25vw" src="/resources/radio.png">
+                <div style="font-weight: bold" id="song" class="savetext">song title</div><div id="artist" class="savetext" style="color: rgb(150, 150, 150); position: absolute; font-weight: lighter">artist name</div>
+                <div id="audio controls">
+                    <progress id="scrub_bar" class="save_scrub_bar" value="0" max="1" style="margin-left: 3vw">&nbsp;</progress>
+                    <div id="scrub_time" class="save_scrub_time">0:00</div>
+                </div>
+                <audio id='audio' class='audio' controls src="" style='display: none' ontimeupdate="initProgressBar(getParentSaveId($(this)[0].parentNode))" onpause="checkPaused(getParentSaveId($(this)[0].parentNode))" onplay="checkPlayed(getParentSaveId($(this)[0].parentNode))">Your browser does not support the<code>audio</code> element.</audio>
+            </div>
+        </div>
+    </script>
+    <script id="baseBlueprint" type="text/html">
+        <div style="width:100vw; height: 5vw"></div>
+    </script>
+    <script id="upperBlueprint" type="text/html">
+        <div style="margin-top: -4.7vw; margin-left: -10vw; width:100vw; height: 3vw; color:white; line-height: 3vw; font-size: 1vw; margin-bottom: 1vw; overflow-y: shown; backdrop-filter: brightness(40%)">
+            <input id="savesearch" placeholder="search" class="search" oninput="searchSaves()"><input id="savefilter" value="sort" type="button" class="filter" onclick="console.log('filter')">
+        </div>
+    </script>
+    <script id="playingDivBlueprint" type="text/html">
+        <div style="width:100vw; height: 2vw; color:white; line-height: 3vw; font-size: 1vw; margin-bottom: 1vw; position: sticky; top: 0; z-index: 10; display: none">
+            this is the playing div blueprint result
+        </div>
+    </script>
+    <script id="innerScrollBlueprint" type="text/html">
+        <div id="innerscrollview" class="innerscrollview"><div id="nosongs" style="position: absolute; width: 75vw; line-height: 5vw; text-align: center; font-size: 0.8vw; color: rgb(160, 160, 160)">nothing to see here :(</div></div>
+    </script>
+
+</body>
+
+<script>
+
+    var saveArray = new Array();
+    let currentUser;
+    var oldsearch = "";
+    var feedScrollValue = 0;
+    let averageRed = 0, averageGreen = 0, averageBlue = 0, avgNum = 0;
+    var numPerched = -1;
+
+    function searchSaves() {
+        var searchstr = $("#savesearch")[0].value.toLowerCase();
+        if(oldsearch.length > searchstr.length) {
+            saveArray.filter(el => el.title.toString().toLowerCase().includes(searchstr) || el.artist.toString().toLowerCase().includes(searchstr)).forEach(element => (element.save.style.display = "block"));
+        } else {
+            saveArray.filter(el => (!el.title.toString().toLowerCase().includes(searchstr) && !el.artist.toString().toLowerCase().includes(searchstr))).forEach(element => (element.save.style.display = "none"));
+        }
+        oldsearch = searchstr;
+    }
+    function startup() {
+        currentUser = getCookie("username");
+        if(!currentUser) {
+            window.open('/login','_self');
+        }
+        createSaves();
+        $("#profile")[0].innerText = "@" + currentUser;
+        //setDefaultPageColors();
+    }
+    function createSaves() {
+        $("#leftside").css("width", "15%");
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange = function() {
+            if (this.readyState == 4 && this.status == 200) {
+                try {
+                    var response = JSON.parse(this.response);
+                } catch(err) {
+                    window.open('/logout','_self');
+                }
+                console.log(response);
+                createUpper();
+                createInnerScroll();
+                for(i = 0; i < response.length; i++) {
+                    createSave(i, response[i]);
+                    if(i == 0) {
+                        createPlayingDiv();
+                    }
+                }
+                setPageColors(averageRed/avgNum, averageGreen/avgNum, averageBlue/avgNum);
+                createBase();
+            }
+        };
+        xhttp.open("GET", "/usersaves", true);
+        xhttp.send();
+        return false;
+    }
+    function createElementFromHTML(htmlString) {
+        var div = document.createElement('div');
+        div.innerHTML = htmlString.trim();
+        return div.firstChild; 
+    }
+    function expand(num) {
+        //$("#save" + num).prependTo("#innerscrollview");
+            $("#save" + numPerched).css("","");
+            $("#save" + numPerched).css('height', '3.8vw');
+            $("#save" + numPerched + " #saveinner").css('height', '2.5vw');
+            $("#save" + numPerched + " #saveinner").css('height', '2.5vw');
+            $("#save" + numPerched + " #playbutton").css('margin-left', '60vw');
+            $("#save" + numPerched + " #playbutton").css('margin-top', '0.25vw');
+        numPerched = num;
+            $("#save" + num).css('height', '7vw');
+            $("#save" + num + " #saveinner").css('height', '7vw');
+            $("#save" + num + " #playbutton").css('margin-left', '0.1vw');
+            $("#save" + num + " #playbutton").css('margin-top', '3.4vw');
+    }
+    function showplaybutton(num) {
+        if(num != numPerched) {
+            $("#save" + num + " #playbutton").css('display', 'unset');
+            $("#save" + num + " #radiobutton").css('display', 'unset');
+        }
+    }
+    function hideplaybutton(num) {
+        if(num != numPerched) {
+            $("#save" + num + " #playbutton").css('display', 'none');
+            $("#save" + num + " #radiobutton").css('display', 'none');
+        }
+    }
+    function createSave(num, data) {
+        var div;
+        div = createElementFromHTML(document.getElementById('saveBlueprint').innerHTML);
+        div.setAttribute('id', 'save' + num);
+        document.getElementById('innerscrollview').appendChild(div);
+        div.querySelector("#save"+num+" #song").innerHTML = (data.title);
+        div.querySelector("#save"+num+" #artist").innerHTML = (data.artist);
+        if(data.palette) {
+            var palette = JSON.parse(data.palette);
+            div.style.backgroundImage = 'url("' + data.image_url + '")';
+            averageRed += (parseInt(palette.Vibrant.rgb[0])-30); averageGreen += (parseInt(palette.Vibrant.rgb[1])-30); averageBlue += (parseInt(palette.Vibrant.rgb[2])-30);
+            avgNum++;
+            div.querySelector("#saveinner").style.backgroundColor = "rgba(" + (parseInt(palette.Vibrant.rgb[0])-30) + "," + (parseInt(palette.Vibrant.rgb[1])-30) + "," + (parseInt(palette.Vibrant.rgb[2])-30) +",0.4)";
+            //div.querySelector("#artist").style.color = "rgba(" + (parseInt(palette.DarkVibrant.rgb[0])) + "," + (parseInt(palette.DarkVibrant.rgb[0])) + "," + (parseInt(palette.DarkVibrant.rgb[0])) + ")";
+            //div.style.backgroundSize = "contain";
+            //div.style.background = "rgb(" + (parseInt(palette.Vibrant.rgb[0])-30) + "," + (parseInt(palette.Vibrant.rgb[1])-30) + "," + (parseInt(palette.Vibrant.rgb[2])-30) +",0.7)";
+        
+        }
+        var newSave = {"save" : div,
+                        "palette" : data.palette || null,
+                        "title" : data.title,
+                        "artist" : data.artist,
+                        "id" : data.track_id};
+        saveArray.push(newSave);
+        
+    }
+    function createBase() {
+        var div;
+        div = createElementFromHTML(document.getElementById('baseBlueprint').innerHTML);
+        document.getElementById('entire_view').appendChild(div);
+    }
+    function createUpper() {
+        var div;
+        div = createElementFromHTML(document.getElementById('upperBlueprint').innerHTML);
+        document.getElementById('entire_view').appendChild(div);
+    }
+    function createPlayingDiv() {
+        var div;
+        div = createElementFromHTML(document.getElementById('playingDivBlueprint').innerHTML);
+        document.getElementById('innerscrollview').appendChild(div);
+    }
+    function createInnerScroll() {
+        var div;
+        div = createElementFromHTML(document.getElementById('innerScrollBlueprint').innerHTML);
+        document.getElementById('entire_view').appendChild(div);
+    }
+    function getSaveElement(num) {
+        return $("#save" + num)[0];
+    }
+    function getAudioElement(save) {
+        return $("#save" + save + " #audio")[0];
+    }
+    function getSaveElementByID(save,id) {
+        return $("#module" + save + " #" + id)[0];
+    }
+    function getParentSaveId(child) {
+        var parent = child.parentNode;
+        var originalId = parent.id;
+        var idnum = originalId.substring(4); //"save" == 4 chars
+        return idnum;
+    }
+    function pause(save, reset) {
+        //for(i = 0; i < moduleArray.length; i++) {
+            getSaveByID(save,"playbutton").src = "/resources/play.png";
+            getAudioElement(save).pause();
+            if(reset) {
+                getAudioElement(save).currentTime = 0;
+            }
+        //}
+        //play(mod)
+    }
+    function play(save, callback) {
+        try {
+            getSaveElementByID(save,"playbutton").src = "/resources/pause.png";
+            getAudioElement(save).volume = 1;
+            $("#save" + save).css("position", "sticky"); $("#save" + save).css("top", "0");
+            $("#save" + numPerched).css("position", "initial");
+            numPerched = save;
+            var playPromise = getAudioElement(save).play();
+                if (playPromise !== undefined) {
+                playPromise.then(function() {
+                    callback(true);
+                }).catch(function(error) {
+                    console.log(error);
+                    //handle page logout??
+                });
+            }
+        } catch(err) {console.log(err)};
+    }
+
+    function toggleSave(num) {
+        //fix
+        console.log(num);
+        var id = saveArray[num].id;
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange = function() {
+            if (this.readyState == 4 && this.status == 200) {
+                var savediv = $("#save" + num);
+                collapseAndKill(num);
+                //savediv.remove();
+            }
+        };
+        xhttp.open("GET", "/save?id="+id, true);
+        xhttp.send();
+        return false;
+    }
+    function calculateCurrentValue(currentTime) {
+        currentTime = Math.floor(currentTime);
+        var current_hour = parseInt(currentTime / 3600) % 24,
+            current_minute = parseInt(currentTime / 60) % 60,
+            current_seconds_long = currentTime % 60,
+            current_seconds = current_seconds_long.toFixed(),
+            current_time = (current_minute < 10 ? "" + current_minute : current_minute) + ":" + (current_seconds < 10 ? "0" + current_seconds : current_seconds);
+
+        return current_time;
+    }
+
+    function initProgressBar(save) {
+        try {
+            if(getAudioElement(save).duration > 0) {
+                $("#save" + save + " #scrub_bar")[0].value = (getAudioElement(save).currentTime / getAudioElement(save).duration);
+            }
+            $("#save" + save + " #scrub_bar")[0].addEventListener("click", function(evt) {
+                seek(evt, save);
+            });
+            $("#save" + save + " #scrub_time")[0].innerText = calculateCurrentValue(getAudioElement(save).currentTime);
+            if($("#save" + save + " #scrub_bar")[0].value == 1) {
+                console.log("fisinihged");
+            }
+        } catch(err) {
+            console.log(err)
+        }
+    }
+    function seek(evt, save) {
+        var percent = evt.offsetX / $("#save" + save + " #scrub_bar")[0].offsetWidth + 0.01;
+        getAudioElement(save).currentTime = percent * getAudioElement(save).duration;
+        $("#save" + save + " #scrub_bar")[0].value = percent / 100;
+    }
+
+    function collapseAndKill(num) {
+        console.log($("#save" + num)[0].style);
+        $("#save" + num)[0].style.height = "0px";
+        setTimeout(function(){$("#save" + num).remove();}, 200);
+        /*
+        $("#save" + num).animate({
+            height: '0'
+        }, { duration: 300, queue: true, complete: function() {$("#save" + num).remove();}});
+        */
+       
+    }
+
+    function destroy(num) {
+        $("#save" + num).remove(); 
+        console.log("killed");
+    }
+
+    function setDefaultPageColors() {
+        document.body.style.background = "url('/resources/hatch.png') #38484C";
+        $("li").css("background", "#38484C");
+        $(".menu")[0].style.background = "#38484C";
+        $("#saved")[0].style.background = "#38484C";
+    }
+    function setPageColors(red, green, blue) {
+        console.log(red + ", " + green + ", " + blue);
+        document.body.style.background = "url('/resources/hatch.png') rgb(" + red + "," + green + "," + blue + ")";
+        $("li").css("background", "rgb(" + red + "," + green + "," + blue + ")");
+        $(".menu")[0].style.background = "rgb(" + red + "," + green + "," + blue + ")";
+        $("#saved")[0].style.background = "rgb(" + red + "," + green + "," + blue + ")";
+        $("#savesearch")[0].style.background = "rgba(" + (red-60) + "," + (green-60) + "," + (blue-60) + ", 0.2)";
+        $("#savesearch")[0].style.border = "rgba(" + (red-60) + "," + (green-60) + "," + (blue-60) + ", 0.2)";
+    }
+    function getCookie(cname) {
+        var name = cname + "=";
+        var decodedCookie = decodeURIComponent(document.cookie);
+        var ca = decodedCookie.split(';');
+        for(var i = 0; i <ca.length; i++) {
+            var c = ca[i];
+            while (c.charAt(0) == ' ') {
+            c = c.substring(1);
+            }
+            if (c.indexOf(name) == 0) {
+            return c.substring(name.length, c.length);
+            }
+        }
+        return "";
+    }
+
+
+
+</script>
+
+</html>

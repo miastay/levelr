@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/node-waves/0.7.6/waves.js"></script>	
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <link rel="stylesheet" type="text/css" href="//fonts.googleapis.com/css?family=Nunito"/>
+    <link rel="stylesheet" type="text/css" href="/resources/stylesheet.css"/>
+</head>
+<body onload="startup()">
+    <ul class="menu" style="margin-top: 0vw">
+        <li class="menutext" style="width: 23vw; margin-top: -0vw"><a href="/launch"><img class="logo" style="margin-top: -0.5vw" src="/resources/levelr.png"></a></li>
+        <li id="feed" class="menutext" onclick="window.open('/feed','_self');">feed</li>
+        <li id="explore" class="menutext" onclick="window.open('/explore','_self');">explore</li>
+        <li id="saved" class="menutext" onclick="window.open('/saved','_self');">saved</li>
+        <li id="profile" class="menutext" style="width: 23vw" onclick="window.open('/logout','_self');">profile</li>
+    </ul>
+    <div id="entire_scroll_view" class="scroll_view">
+        <div id="savemessage" class="savemessage">song saved!</div>
+        <div style="width:100vw; height: 5vw"></div>
+        <div id="leftside" class='column side'></div>
+        <div style="width:100vw; height: 5vw"></div>
+        <script id="moduleBlueprint" type="text/html">
+            <div id='module0' class='module' tag="modtag">
+                <div id="loading" class="loadingdiv"><img style="width: 3vw; padding-left: 24vw; padding-top: 14vw;  display: inline-block" src="/resources/load.gif"></div>
+                <div id="image" class="module image" onload="printPalette($(this)[0].background-image)"  onclick='getAudioElement(getParentModuleId($(this)[0])).paused ? play(getParentModuleId($(this)[0].parentNode), function(param){console.log(param)}) : pause(getParentModuleId($(this)[0]), false)'></div>
+                <img id="staricon" class='icon header' src="/resources/empty-star.png" onclick='toggleSave(getParentModuleId($(this)[0]))'>
+                <div id="module_footer" class="module footer" style="mix-blend-mode: screen; padding-top: 1vw; overflow: hidden">
+                    <img id='playbutton' class='playbutton' src="/resources/play.png"  onclick='getAudioElement(getParentModuleId($(this)[0].parentNode)).paused ? play(getParentModuleId($(this)[0].parentNode)) : pause(getParentModuleId($(this)[0].parentNode), false)'>
+                    <div id="audio controls">
+                        <progress id="scrub_bar" class="scrub_bar" value="0" max="1">&nbsp;</progress>
+                        <div id="scrub_time" class="scrub_time">0:00</div>
+                    </div>
+                    <img class="icon footer" src="/resources/linkout.png" style="margin-top: 0.2vw" onclick='linkToSource(getParentModuleId($(this)[0].parentNode))'>
+                    <span id="artist" class="artist">Artist Name</span>
+                    <span id="title" class="title">Song Title</span>
+                    <audio id='audio' class='audio' controls src="" style='display: none' ontimeupdate="initProgressBar(getParentModuleId($(this)[0].parentNode))" onpause="checkPaused(getParentModuleId($(this)[0].parentNode))" onplay="checkPlayed(getParentModuleId($(this)[0].parentNode))">Your browser does not support the<code>audio</code> element.</audio>
+                </div>
+            </div>
+        </script>
+
+        <script id="saveBlueprint" type="text/html">
+            <div id="save0" class="save">
+                <div id="saveinner" class="saveinner" onmouseover="showplaybutton(getParentSaveId($(this)[0]))" onmouseout="hideplaybutton(getParentSaveId($(this)[0]))">
+                    <img id='playbutton' class='saveplaybutton' src="/resources/play.png"  onclick='getAudioElement(getParentSaveId($(this)[0].parentNode)).paused ? play(getParentSaveId($(this)[0].parentNode), function(param){console.log(param)}) : pause(getParentSaveId($(this)[0].parentNode), false)'>
+                    <div style="font-weight: bold" id="song" class="savetext">song title</div><div id="artist" class="savetext" style="color: rgb(150, 150, 150); position: absolute; font-weight: lighter">artist name</div>
+                </div>
+            </div>
+        </script>
+
+        <script id="tagBlueprint" type="text/html">
+            <div class="tag">tagname</div>
+        </script>
+
+        <script id="baseBlueprint" type="text/html">
+            <div style="width:100vw; height: 10vw"></div>
+        </script>
+        <script id="upperBlueprint" type="text/html">
+            <div style="margin-left: -10vw; width:100vw; height: 3vw; color:white; line-height: 3vw; font-size: 1vw; margin-bottom: 1vw">
+                <input id="savesearch" placeholder="search" class="search" oninput="searchSaves()"><input id="savefilter" value="filter" type="button" class="filter" onclick="console.log('filter')">
+            </div>
+        </script>
+
+        <script id="innerScrollBlueprint" type="text/html">
+            <div id="innerscrollview" class="innerscrollview"></div>
+        </script>
+
+    </div>
+    
+</body>
+<script>
+    /*
+    Script for page functionality :.)
+    onmouseover="hoveron($(this)[0])" onmouseout="hoveroff($(this)[0])"
+    */
+    let currentAudioSource;
+    var isAutoplayOn = true;
+    var focusedMod = -1;
+    var moduleArray = new Array();
+    var saveArray = new Array();
+    let progressbar;
+    let currentUser;
+    var totalReceived = 0;
+    var feedScrollValue = 0;
+
+    function getSaveList(callback) {
+        $("#leftside").css("width", "15%");
+        
+            var xhttp = new XMLHttpRequest();
+            xhttp.onreadystatechange = function() {
+                if (this.readyState == 4 && this.status == 200) {
+                    try {
+                        var response = JSON.parse(this.response);
+                    } catch(err) {
+                        window.open('/logout','_self');
+                    }
+                    
+                    for(i = 0; i < response.length; i++) {
+                        var data = response[i];
+                        var newSave = {"save" : i,
+                                        "palette" : data.palette || null,
+                                        "title" : data.title,
+                                        "artist" : data.artist};
+                        saveArray.push(newSave);
+                    }
+                    callback();
+                }
+            };
+            xhttp.open("GET", "/usersaves", true);
+            xhttp.send();
+            return false;
+        
+    }
+    /*
+    function locationHashChanged() {
+        if (location.hash === '#saved') {
+            setDefaultPageColors();
+            for(i = 0; i < saveArray.length; i++) {
+                $("#save" + i).css("display", "block");
+            }
+            for(i = 0; i < moduleArray.length; i++) {
+                $("#module" + i).css("display", "none");
+            }
+        }
+        if (location.hash === '#feed') {
+            for(i = 0; i < moduleArray.length; i++) {
+                $("#module" + i).css("display", "block");
+            }
+            for(i = 0; i < saveArray.length; i++) {
+                $("#save" + i).css("display", "none");
+            }
+            $("#entire_scroll_view")[0].scrollTop = feedScrollValue;
+            updateScroll();
+        }
+    }
+    window.onhashchange = locationHashChanged;
+    */
+
+    function startup() {
+        console.log("starting");
+        getSaveList(function() {
+            console.log("saves got");
+            createModules();
+        });
+        currentUser = getCookie("username");
+        $("#profile")[0].innerText = "@" + currentUser;
+    }
+
+    function createModules() {
+        /*
+        var testArray = new Array(
+                                    "Gq2AeaqUAO4",
+                                    "https://soundcloud.com/monstercat/tristam-bone-dry",
+                                    "QMvrr7_5FMA",
+                                    "5auyUSI6as4",
+                                    "https://soundcloud.com/silent-skies/nervo-emotional-silent-sk1es-remix",
+                                    'https://soundcloud.com/dvrkcloud2/house-of-cards-dvrkcloudbootleg', 
+                                    "https://soundcloud.com/jonassteven/bonnie-x-clyde-bass-jam-jts-remix",
+                                    "https://soundcloud.com/iamaryze/ultraviolent",
+                                    "https://soundcloud.com/ryan-exley/ryan-exley-lonely-hearts-ft-derek-joel",
+                                    "https://soundcloud.com/s1lva-music/comfort-zone-feat-karra-2",
+                                    "https://soundcloud.com/elysiandenver/whatever-we-are-limbo-elysian-remix",
+                                    "https://soundcloud.com/ryan-exley/ryan-exley-stormft-jj",
+                                    "https://soundcloud.com/zapphireofficial/moregiraffes-cloud-remix",
+                                    "https://soundcloud.com/ilyaamusic/ilyaa-feat-casey-cook-battery-3",
+                                    "https://soundcloud.com/dantelevo/medicine-tritonal-ft-levv-dante-levo-remix"
+                                    /*
+                                    https://soundcloud.com/caseandpoint/paradigm
+                                    https://soundcloud.com/thesimplemusic/holdmenow
+                                    https://soundcloud.com/demitriandalley/strike-a-match
+                                    https://soundcloud.com/djayonmusic/specter
+                                    https://soundcloud.com/djayonmusic/this-could-be-love-ayon-remix
+                                    https://soundcloud.com/djayonmusic/heartbeat
+                                    https://soundcloud.com/apekofficial/traces-original-mix-feat-karra
+                                    https://soundcloud.com/djayonmusic/falling-down
+                                    https://soundcloud.com/lilboiikantu-music/get-right
+                                    https://soundcloud.com/monstercat/tristam-braken-frame-of-mind
+                                    https://soundcloud.com/arydmusic/tristam-bone-dry-aryd-piano-cover
+                                    https://soundcloud.com/dannyolsonmusic/danny-olson-waiting-ft-bianca);
+                                                                                                                );
+            
+            */
+            var xhttp = new XMLHttpRequest();
+            xhttp.onreadystatechange = function() {
+                if (this.readyState == 4 && this.status == 200) {
+                    testArray = this.response;
+                    for(x = 0; x < testArray.length; x++) {
+                        createModule(x);
+                    }
+                    console.log("divs created");
+                    for(x = 0; x < testArray.length; x++) {
+                        create(x,testArray[x], moduleArray[x].module);
+                    }
+                } else {
+                    console.log("Problem with pulling track.");
+                }
+            };
+            xhttp.open("GET", "/random?num=5", true);
+            xhttp.send();
+            return false;
+        
+    }
+
+    function toggleSave(num) {
+        var id = moduleArray[num].id;
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange = function() {
+            if (this.readyState == 4 && this.status == 200) {
+                console.log($("#module"+num+" #staricon")[0].src)
+                if($("#module"+num+" #staricon")[0].src.includes("empty-star.png")) {
+                    $("#module"+num+" #staricon")[0].src = "/resources/full-star.png";
+                    animateSaveMessage(true);
+                } else {
+                    $("#module"+num+" #staricon")[0].src = "/resources/empty-star.png";
+                    animateSaveMessage(false);
+                }
+            }
+        };
+        xhttp.open("GET", "/save?id="+id, true);
+        xhttp.send();
+        return false;
+    }
+
+    function animateSaveMessage(isAdding) {
+        if(isAdding) {
+            $("#savemessage")[0].innerText = "song added!";
+        } else {
+            $("#savemessage")[0].innerText = "song removed!";
+        }
+        $("#savemessage").css('margin-top', '80vh')
+        $("#savemessage").css('filter', 'opacity(99%)')
+        setTimeout(function() {
+            $("#savemessage").css('margin-top', '83vh')
+            $("#savemessage").css('filter', 'opacity(0%)')
+        }, 1000);
+    }
+
+    function checkVisible(elm, threshold, mode) {
+      threshold = threshold || 0;
+      mode = mode || 'visible';
+
+      var rect = elm.getBoundingClientRect();
+      var viewHeight = Math.max(document.documentElement.clientHeight, window.innerHeight);
+      var above = rect.bottom - threshold < 0;
+      var below = rect.top - viewHeight + threshold >= 0;
+
+      return mode === 'above' ? above : (mode === 'below' ? below : !above && !below);
+    }
+    function linkToSource(mod) {
+        window.open(
+            moduleArray[mod].linkout,
+            '_blank'
+        );
+    }
+    function shuffle(a) {
+        var j, x, i;
+        for (i = a.length - 1; i > 0; i--) {
+            j = Math.floor(Math.random() * (i + 1));
+            x = a[i];
+            a[i] = a[j];
+            a[j] = x;
+        }
+        return a;
+    }
+    function checkPaused(mod) {  //triggered by external controls (e.g. media buttons)
+        pause(mod, false);
+    }
+    function checkPlayed(mod) {  //triggered by external controls (e.g. media buttons)
+        fade(-1, mod);
+    }
+    function pause(mod, drop) {
+        //for(i = 0; i < moduleArray.length; i++) {
+            getModElementByID(mod,"playbutton").src = "/resources/play.png";
+            getAudioElement(mod).pause();
+            if(drop) {
+                if($("#module" + mod + " #scrub_bar")[0].value >= 0.99 || getAudioElement(mod).currentTime <= 2) {
+                    getAudioElement(mod).currentTime = 0;
+                } else {
+                    getAudioElement(mod).currentTime -= 2;
+                }
+            }
+        //}
+        //play(mod)
+    }
+    function play(mod, callback) {
+        try {
+            getModElementByID(mod,"playbutton").src = "/resources/pause.png";
+            getAudioElement(mod).volume = 1;
+            var playPromise = getAudioElement(mod).play();
+                if (playPromise !== undefined) {
+                playPromise.then(function() {
+                    callback(true);
+                }).catch(function(error) {
+                    console.log(error);
+                    //handle page logout??
+                });
+            }
+        } catch(err) {console.log(err)};
+    }
+    function fade(from , to) {
+        console.log(from + ", " + to)
+        if(from != to) {
+            $("#module" + from + " #audio").animate({
+                volume: '0'
+            }, { duration: 500, easing: "linear", queue: false, start: function(){play(to, function(started){
+                if(started) {
+                    $("#module" + to + " #audio").animate({
+                    volume: '1'
+                    }, { duration: 500, queue: false, easing: "linear", complete: function(){pause(from, true);}});
+                } else {
+                    console.log(started);
+                }})}});
+        }
+    }
+    function fadein(mod) {
+       // getAudioElement(mod).play();
+        
+    }
+
+    function getModElement(mod) {
+        return $("#module" + mod)[0];
+    }
+    function getAudioElement(mod) {
+        return $("#module" + mod + " #audio")[0];
+    }
+    function getModElementByID(mod,id) {
+        return $("#module" + mod + " #" + id)[0];
+    }
+    function exp(num, id, moduleObj) {
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange = function() {
+            if (this.readyState == 4 && this.status == 200) {
+                var objs = JSON.parse(this.response);
+                create(num, objs, moduleObj)
+            }
+        };
+        if(id.search('http') != -1) {
+            xhttp.open("GET", "/stream?vid=" + id, true);
+        } else {
+            xhttp.open("GET", "/video?vid=" + id, true);
+        }
+        xhttp.send();
+        return false;
+    }
+    function create(num, json, moduleObj) {
+        if(json.data) {
+            var data = json.data;
+        } else {var data = json;}
+        var div = moduleObj;
+        div.querySelector("#module"+num+" #image").style.backgroundImage = 'url(' + data.image_url + ')';
+        div.querySelector("#module"+num+" #audio").src = data.stream_url;
+        div.querySelector("#module"+num+" #title").innerHTML = (data.title);
+        div.querySelector("#module"+num+" #artist").innerHTML = (data.artist);
+        var colors = json.palette;
+        if(json.palette) {
+            div.querySelector("#module"+num+" #artist").style.color = "rgb(" + colors.LightVibrant.rgb + ")";
+            div.querySelector("#module"+num+" #module_footer").style.background = "rgb(" + (parseInt(colors.Vibrant.rgb[0])-30) + "," + (parseInt(colors.Vibrant.rgb[1])-30) + "," + (parseInt(colors.Vibrant.rgb[2])-30) +",0.7)";
+            div.querySelector("#module"+num+" #module_footer").style.overflow = "hidden";
+            div.querySelector("#module"+num+" #scrub_bar").style.borderColor = "rgb(" + (parseInt(colors.Vibrant.rgb[0])-30) + "," + (parseInt(colors.Vibrant.rgb[1])-30) + "," + (parseInt(colors.Vibrant.rgb[2])-30)+")";
+            div.querySelector("#module"+num+" #scrub_bar").style.setProperty("--c", "rgb(" + (parseInt(colors.Vibrant.rgb[0])-30) + "," + (parseInt(colors.Vibrant.rgb[1])-30) + "," + (parseInt(colors.Vibrant.rgb[2])-30) +")");
+            div.querySelector("#module"+num+" #loading").style.filter = "opacity(0%)"
+        }
+        if(saveArray.filter(el => el.title.toString().includes(data.title)).length > 0) {
+            div.querySelector("#staricon").src = "/resources/full-star.png";
+            console.log("starred");
+        }
+        moduleArray[num].palette = colors;
+        moduleArray[num].linkout = data.original_url;
+        moduleArray[num].id = data.track_id;
+        if(totalReceived > 2) {
+            changePageColors(moduleArray[0].palette);
+            fade(1, focusedMod);
+        }
+        moduleObj.linkout = "";
+        totalReceived++;
+    }
+    function clearLoad(num) {
+        $("#module"+num+" #loading").style.filter = "opacity(0%)"
+    }
+    function createModule(num) {
+        var div;
+        div = createElementFromHTML(document.getElementById('moduleBlueprint').innerHTML);
+        div.setAttribute('id', 'module' + num);
+        document.getElementById('entire_scroll_view').appendChild(div);
+        var newModule = {"module" : div,
+                         "palette" : null,
+                         "linkout" : null,
+                         "id" : null};
+        moduleArray.push(newModule);
+    }
+    function createTag(tagname, parent) {
+        var tagdiv;
+        tagdiv = createElementFromHTML(document.getElementById('tagBlueprint').innerHTML);
+        tagdiv.text = tagname;
+    }
+    /*
+    function changeModuleImage(mod, url) {
+        var section = $('#module' + mod + ' .module.image');
+        section.css('background-image','url(' + url + ')');
+    }
+    function changeModuleAudio(mod, url) {
+        $('#module' + mod + ' #audio').attr('src', url);
+    }
+    function changeModuleData(mod, title, artist, linkout_url) {
+        $('#module' + mod + ' .artist').text(artist);
+        $('#module' + mod + ' .title').html(title);
+    }
+    function changeModuleColors(mod, colors) {
+        $("#module" + mod + " .artist")[0].style.color = "rgb(" + colors.LightVibrant.rgb + ")";
+        $("#module" + mod + " .module.footer")[0].style.background = "rgb(" + (parseInt(colors.Vibrant.rgb[0])-30) + "," + (parseInt(colors.Vibrant.rgb[1])-30) + "," + (parseInt(colors.Vibrant.rgb[2])-30) +",0.7)";
+        $("#module" + mod + " .module.footer")[0].style.overflow = "hidden";
+        $("#module" + mod + " progress").css("border-color", "rgb(" + (parseInt(colors.Vibrant.rgb[0])-30) + "," + (parseInt(colors.Vibrant.rgb[1])-30) + "," + (parseInt(colors.Vibrant.rgb[2])-30)+")");
+        $("#module" + mod + " progress")[0].style.setProperty("--c", "rgb(" + (parseInt(colors.Vibrant.rgb[0])-30) + "," + (parseInt(colors.Vibrant.rgb[1])-30) + "," + (parseInt(colors.Vibrant.rgb[2])-30) +")");
+    }
+    */
+    function changePageColors(colors) {
+        document.body.style.background = "url('/resources/hatch.png') rgb(" + colors.Muted.rgb + ")";
+        $("li").css("background", "rgb(" + colors.Vibrant.rgb + ")");
+        $(".menu")[0].style.background = "rgb(" + colors.Vibrant.rgb + ")";
+        $("#feed")[0].style.background = "rgb(" + (parseInt(colors.Vibrant.rgb[0])-30) + "," + (parseInt(colors.Vibrant.rgb[1])-30) + "," + (parseInt(colors.Vibrant.rgb[2])-30) +")";
+        $("#savemessage")[0].style.background = "rgb(" + colors.DarkVibrant.rgb + ")";
+    }
+    function setDefaultPageColors() {
+        document.body.style.background = "url('/resources/hatch.png') #38484C";
+        $("li").css("background", "#38484C");
+        $(".menu")[0].style.background = "#38484C";
+        $("#saved")[0].style.background = "#38484C";
+    }
+    function hoveron(element) {
+        var oldtransition = element.style.transition;
+        element.style.transition = "";
+        element.style.background = "rgb(" + moduleArray[focusedMod].palette.LightVibrant.rgb + ")";
+        element.style.color = "rgb(" + moduleArray[focusedMod].palette.DarkMuted.rgb + ")";
+        element.style.transition = oldtransition;
+    }
+    function hoveroff(element) {
+        element.style.background = "rgb(" + moduleArray[focusedMod].palette.Vibrant.rgb + ")";
+        element.style.color = "white";
+    }
+
+    function calculateCurrentValue(currentTime) {
+        currentTime = Math.floor(currentTime);
+        var current_hour = parseInt(currentTime / 3600) % 24,
+            current_minute = parseInt(currentTime / 60) % 60,
+            current_seconds_long = currentTime % 60,
+            current_seconds = current_seconds_long.toFixed(),
+            current_time = (current_minute < 10 ? "" + current_minute : current_minute) + ":" + (current_seconds < 10 ? "0" + current_seconds : current_seconds);
+
+        return current_time;
+    }
+
+    function initProgressBar(mod) {
+        try {
+            if(getAudioElement(mod).duration > 0) {
+                $("#module" + mod + " #scrub_bar")[0].value = (getAudioElement(mod).currentTime / getAudioElement(mod).duration);
+            }
+            $("#module" + mod + " #scrub_bar")[0].addEventListener("click", function(evt) {
+                seek(evt, mod);
+            });
+            $("#module" + mod + " #scrub_time")[0].innerText = calculateCurrentValue(getAudioElement(mod).currentTime);
+            if($("#module" + mod + " #scrub_bar")[0].value == 1) {
+                if(document.hasFocus) {
+                    $("#entire_scroll_view").animate({ scrollTop: "+=400px" }, 1000, "linear");
+                } else {
+                    var x = $("#entire_scroll_view").scrollTop();
+                    x += 400;
+                    $("#entire_scroll_view").scrollTop(x);
+                    fade(focusedMod, focusedMod+1); focusedMod += 1;
+                }
+            }
+        } catch(err) {
+            console.log(err)
+        }
+    }
+    function seek(evt, mod) {
+        var percent = evt.offsetX / $("#module" + mod + " #scrub_bar")[0].offsetWidth + 0.01;
+        getAudioElement(mod).currentTime = percent * getAudioElement(mod).duration;
+        $("#module" + mod + " #scrub_bar")[0].value = percent / 100;
+    }
+    function createElementFromHTML(htmlString) {
+        var div = document.createElement('div');
+        div.innerHTML = htmlString.trim();
+        return div.firstChild; 
+    }
+    function getParentModuleId(child) {
+        var parent = child.parentNode;
+        var originalId = parent.id;
+        var idnum = originalId.substring(6);
+        return idnum;
+    }
+    var timer = null;
+    $("#entire_scroll_view")[0].addEventListener('scroll', function() {
+        if(timer !== null) {
+            clearTimeout(timer);        
+        }
+        timer = setTimeout(updateScroll(), 150);
+    }, false);
+
+    function updateScroll() {
+        feedScrollValue = $("#entire_scroll_view")[0].scrollTop;
+        $("#entire_scroll_view")[0].style.overflowY = "scroll";
+            for(i = 0; i < moduleArray.length; i++) {
+                moduleArray[i].boundingrect = $("#module" + i)[0].getBoundingClientRect();
+                if(moduleArray[i].boundingrect.bottom > (window.innerHeight/2) && moduleArray[i].boundingrect.top < (window.innerHeight/2)) {
+                    moduleArray[i].module.style.filter = "brightness(100%) blur(0px)";
+                    if(moduleArray[i].palette != null) {
+                        changePageColors(moduleArray[i].palette);
+                    }
+                    if(i != focusedMod) {
+                        fade(focusedMod, i); focusedMod = i;
+                    }
+                } else {
+                    moduleArray[i].module.style.filter = "brightness(70%) blur(10px)";
+                    if(Math.abs(i - focusedMod) >= 2) {
+                        moduleArray[i].module.visibility = "hidden";
+                    } else {
+                        moduleArray[i].module.visibility = "visible";
+                    }
+                }
+            }
+    }
+
+    function getCookie(cname) {
+        var name = cname + "=";
+        var decodedCookie = decodeURIComponent(document.cookie);
+        var ca = decodedCookie.split(';');
+        for(var i = 0; i <ca.length; i++) {
+            var c = ca[i];
+            while (c.charAt(0) == ' ') {
+            c = c.substring(1);
+            }
+            if (c.indexOf(name) == 0) {
+            return c.substring(name.length, c.length);
+            }
+        }
+        return "";
+    }
+
+    document.addEventListener('keypress', logKey);
+
+    function logKey(e) {
+        if(e.key == ' ') {
+            getAudioElement(focusedMod).paused ? play(focusedMod) : pause(focusedMod)
+        }
+    }
+</script>
+</html>
